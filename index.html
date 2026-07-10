@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pringle Prints — Custom Card &amp; Sheet Printing</title>
+<meta name="description" content="Small-batch custom card and sheet printing. Upload a print-ready PDF, pick your finish, and we'll handle the rest.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #FDFDFB;
+    --ink: #16150F;
+    --ink-soft: #4A4940;
+    --rule: #D9D7CE;
+    --magenta: #E0197D;
+    --magenta-soft: #FCE9F3;
+    --mono: "IBM Plex Mono", ui-monospace, monospace;
+    --sans: "Archivo", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 0 24px 96px; }
+
+  /* ---------- crop-mark section frame (signature) ---------- */
+  .sheet {
+    position: relative;
+    padding: 40px 28px;
+    margin-top: 56px;
+  }
+  .sheet::before, .sheet::after,
+  .sheet > .marks::before, .sheet > .marks::after {
+    content: "";
+    position: absolute;
+    width: 18px; height: 18px;
+    border-color: var(--ink);
+    border-style: solid;
+    border-width: 0;
+  }
+  .sheet::before { top: 0; left: 0; border-top-width: 1.5px; border-left-width: 1.5px; }
+  .sheet::after { top: 0; right: 0; border-top-width: 1.5px; border-right-width: 1.5px; }
+  .sheet > .marks::before { bottom: 0; left: 0; border-bottom-width: 1.5px; border-left-width: 1.5px; }
+  .sheet > .marks::after { bottom: 0; right: 0; border-bottom-width: 1.5px; border-right-width: 1.5px; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--magenta);
+    margin-bottom: 14px;
+  }
+
+  /* ---------- header ---------- */
+  header {
+    padding: 72px 28px 8px;
+    max-width: 760px;
+    margin: 0 auto;
+  }
+  .registration {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-soft);
+    display: flex;
+    gap: 18px;
+    margin-bottom: 40px;
+  }
+  .registration span::before { content: "● "; font-size: 9px; vertical-align: 2px; }
+  .registration .c::before { color: #00A3D9; }
+  .registration .m::before { color: var(--magenta); }
+  .registration .y::before { color: #E8B900; }
+  .registration .k::before { color: var(--ink); }
+  h1 {
+    font-weight: 850;
+    font-stretch: 88%;
+    font-size: clamp(42px, 8vw, 72px);
+    line-height: 0.98;
+    letter-spacing: -0.015em;
+  }
+  h1 .accent { color: var(--magenta); }
+  .lede {
+    margin-top: 20px;
+    font-size: 20px;
+    color: var(--ink-soft);
+    max-width: 34em;
+  }
+
+  h2 {
+    font-weight: 800;
+    font-stretch: 92%;
+    font-size: 26px;
+    margin-bottom: 18px;
+  }
+  p + p { margin-top: 12px; }
+
+  /* ---------- pricing ---------- */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+  }
+  th, td {
+    text-align: left;
+    padding: 12px 10px;
+    border-bottom: 1px solid var(--rule);
+  }
+  th {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    font-weight: 500;
+  }
+  td.price { font-weight: 700; white-space: nowrap; }
+  tr.value td { background: var(--magenta-soft); }
+  tr.value .tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--magenta);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-left: 8px;
+  }
+  .footnote {
+    font-size: 14px;
+    color: var(--ink-soft);
+    margin-top: 12px;
+  }
+
+  /* ---------- specs ---------- */
+  dl.specs { display: grid; grid-template-columns: max-content 1fr; gap: 10px 22px; }
+  dl.specs dt {
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    padding-top: 2px;
+  }
+  @media (max-width: 540px) {
+    dl.specs { grid-template-columns: 1fr; gap: 2px; }
+    dl.specs dd { margin-bottom: 12px; }
+  }
+
+  /* ---------- form ---------- */
+  form { display: grid; gap: 22px; }
+  label.field { display: grid; gap: 7px; }
+  .label-text {
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .hint { font-size: 14px; color: var(--ink-soft); }
+  input[type="text"], input[type="email"], input[type="url"], select, textarea {
+    font: inherit;
+    padding: 12px 14px;
+    border: 1.5px solid var(--ink);
+    border-radius: 0;
+    background: #fff;
+    color: var(--ink);
+    width: 100%;
+  }
+  textarea { min-height: 110px; resize: vertical; }
+  input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visible {
+    outline: 3px solid var(--magenta);
+    outline-offset: 2px;
+  }
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  button {
+    font: inherit;
+    font-weight: 700;
+    padding: 14px 26px;
+    border: 1.5px solid var(--ink);
+    cursor: pointer;
+  }
+  button.primary { background: var(--ink); color: var(--paper); }
+  button.primary:hover { background: var(--magenta); border-color: var(--magenta); }
+  button.ghost { background: transparent; color: var(--ink); }
+  button.ghost:hover { border-color: var(--magenta); color: var(--magenta); }
+  .copied { font-family: var(--mono); font-size: 13px; color: var(--magenta); }
+
+  a { color: var(--ink); text-decoration-color: var(--magenta); text-decoration-thickness: 2px; }
+  a:hover { color: var(--magenta); }
+
+  footer {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 48px 28px 64px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--ink-soft);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="registration" aria-hidden="true">
+    <span class="c">C</span><span class="m">M</span><span class="y">Y</span><span class="k">K</span>
+  </div>
+  <h1>Pringle Prints<span class="accent">.</span></h1>
+  <p class="lede">Small-batch custom card and sheet printing. Send a print-ready file, pick a finish, and we'll take it from there — printed, cut, and ready for pickup or delivery.</p>
+</header>
+
+<main>
+
+  <section class="sheet" aria-labelledby="pricing-h">
+    <span class="marks" aria-hidden="true"></span>
+    <p class="eyebrow">01 · Pricing</p>
+    <h2 id="pricing-h">Per-batch pricing</h2>
+    <table>
+      <thead>
+        <tr><th scope="col">Batch size</th><th scope="col">Price (CAD)</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Up to 112 cards</td><td class="price">$25</td></tr>
+        <tr><td>Up to 224 cards</td><td class="price">$50</td></tr>
+        <tr><td>Up to 336 cards</td><td class="price">$75</td></tr>
+        <tr><td>Up to 448 cards</td><td class="price">$100</td></tr>
+        <tr class="value"><td>Up to 672 cards<span class="tag">best value</span></td><td class="price">$125</td></tr>
+      </tbody>
+    </table>
+    <p class="footnote">Finishes: standard cardstock is included and recommended. Double-sided glossy laminate or satin front with matte laminate back adds $5 per batch.</p>
+  </section>
+
+  <section class="sheet" aria-labelledby="specs-h">
+    <span class="marks" aria-hidden="true"></span>
+    <p class="eyebrow">02 · File specs</p>
+    <h2 id="specs-h">Preparing your file</h2>
+    <dl class="specs">
+      <dt>Formats</dt>
+      <dd>PDF (preferred) or PNG. If you're unsure whether your file will work, send it anyway — we'll check it before printing and follow up if anything needs adjusting.</dd>
+      <dt>Resolution</dt>
+      <dd>300 DPI or higher for crisp results.</dd>
+      <dt>Bleed</dt>
+      <dd>If your layout includes bleed and cut lines, we'll follow them. If not, we'll confirm trim with you before cutting.</dd>
+      <dt>Delivery</dt>
+      <dd>Attach files under 20&nbsp;MB directly to your order email. For larger files, paste a share link (Google&nbsp;Drive, Dropbox, Proton&nbsp;Drive, etc.) in the form below — just make sure the link is set to “anyone with the link can view.”</dd>
+    </dl>
+  </section>
+
+  <section class="sheet" aria-labelledby="order-h">
+    <span class="marks" aria-hidden="true"></span>
+    <p class="eyebrow">03 · Place an order</p>
+    <h2 id="order-h">Order form</h2>
+    <p style="margin-bottom:22px;">This form composes an order email in your own mail app — your details go straight to us and nowhere else. Prefer to skip the form? Email <a href="mailto:orders@pringleprints.ca">orders@pringleprints.ca</a> directly with the same details.</p>
+
+    <form id="order-form">
+      <label class="field">
+        <span class="label-text">Your name</span>
+        <input type="text" id="f-name" autocomplete="name" required>
+      </label>
+
+      <label class="field">
+        <span class="label-text">Your email</span>
+        <input type="email" id="f-email" autocomplete="email" required>
+      </label>
+
+      <label class="field">
+        <span class="label-text">File link (for files over 20 MB)</span>
+        <span class="hint">Paste a share link to your PDF or PNG. Smaller files can be attached to the email instead.</span>
+        <input type="url" id="f-link" placeholder="https://…">
+      </label>
+
+      <label class="field">
+        <span class="label-text">Card finish</span>
+        <select id="f-finish">
+          <option value="Standard cardstock (recommended)" selected>Standard cardstock (recommended)</option>
+          <option value="Double-sided glossy laminate (+$5)">Double-sided glossy laminate (+$5)</option>
+          <option value="Satin front + matte laminate back (+$5)">Satin front + matte laminate back (+$5)</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span class="label-text">Batch size</span>
+        <select id="f-size">
+          <option value="Up to 112 cards — $25" selected>Up to 112 cards — $25</option>
+          <option value="Up to 224 cards — $50">Up to 224 cards — $50</option>
+          <option value="Up to 336 cards — $75">Up to 336 cards — $75</option>
+          <option value="Up to 448 cards — $100">Up to 448 cards — $100</option>
+          <option value="Up to 672 cards — $125 (best value)">Up to 672 cards — $125 (best value)</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span class="label-text">Special requests</span>
+        <span class="hint">Anything we should know — e.g. “laminate the tokens only,” pickup vs. delivery, timing.</span>
+        <textarea id="f-notes"></textarea>
+      </label>
+
+      <div class="actions">
+        <button type="submit" class="primary">Open order email</button>
+        <button type="button" class="ghost" id="copy-btn">Copy order summary</button>
+        <span class="copied" id="copied-msg" role="status" aria-live="polite"></span>
+      </div>
+      <p class="hint">“Open order email” launches your mail app with everything filled in — attach your file there if it's under 20&nbsp;MB, then hit send. “Copy order summary” copies the same text so you can paste it into any email or message.</p>
+    </form>
+  </section>
+
+  <section class="sheet" aria-labelledby="how-h">
+    <span class="marks" aria-hidden="true"></span>
+    <p class="eyebrow">04 · What happens next</p>
+    <h2 id="how-h">After you order</h2>
+    <p>We'll confirm your order and file by email, flag anything that needs fixing before it goes to print, and let you know the timeline. Payment is by e-transfer once your order is confirmed. Printing and hand-cutting a batch takes real time — we'll always give you an honest estimate rather than a fast one.</p>
+  </section>
+
+</main>
+
+<footer>
+  Pringle Prints · orders@pringleprints.ca · printed &amp; cut in Canada
+</footer>
+
+<script>
+  const ORDER_EMAIL = "orders@pringleprints.ca";
+
+  function buildSummary() {
+    const v = id => document.getElementById(id).value.trim();
+    const lines = [
+      "New print order",
+      "----------------",
+      "Name: "    + v("f-name"),
+      "Email: "   + v("f-email"),
+      "Finish: "  + v("f-finish"),
+      "Batch: "   + v("f-size"),
+      "File link: " + (v("f-link") || "(attached to this email)"),
+      "",
+      "Special requests:",
+      v("f-notes") || "(none)",
+    ];
+    return lines.join("\n");
+  }
+
+  document.getElementById("order-form").addEventListener("submit", e => {
+    e.preventDefault();
+    const subject = encodeURIComponent("Print order — " + document.getElementById("f-name").value.trim());
+    const body = encodeURIComponent(buildSummary());
+    window.location.href = `mailto:${ORDER_EMAIL}?subject=${subject}&body=${body}`;
+  });
+
+  document.getElementById("copy-btn").addEventListener("click", async () => {
+    const msg = document.getElementById("copied-msg");
+    try {
+      await navigator.clipboard.writeText(buildSummary() + "\n\nSend to: " + ORDER_EMAIL);
+      msg.textContent = "Copied — paste it into any email.";
+    } catch {
+      msg.textContent = "Couldn't copy automatically — select and copy the form contents manually.";
+    }
+    setTimeout(() => { msg.textContent = ""; }, 5000);
+  });
+</script>
+
+</body>
+</html>
