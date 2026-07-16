@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Order Status — Pringle Prints</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #FDFDFB;
+    --ink: #16150F;
+    --ink-soft: #4A4940;
+    --rule: #D9D7CE;
+    --magenta: #E0197D;
+    --magenta-soft: #FCE9F3;
+    --mono: "IBM Plex Mono", ui-monospace, monospace;
+    --sans: "Archivo", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 17px; line-height: 1.55; }
+  main { max-width: 560px; margin: 0 auto; padding: 56px 24px 96px; }
+  .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--magenta); margin-bottom: 10px; }
+  h1 { font-weight: 850; font-stretch: 88%; font-size: clamp(32px, 6vw, 44px); line-height: 1.02; letter-spacing: -0.015em; margin-bottom: 10px; }
+  .lede { color: var(--ink-soft); margin-bottom: 32px; }
+  form { display: grid; gap: 16px; margin-bottom: 32px; }
+  label.field { display: grid; gap: 7px; }
+  .label-text { font-family: var(--mono); font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; }
+  input { font: inherit; padding: 12px 14px; border: 1.5px solid var(--ink); border-radius: 0; background: #fff; color: var(--ink); width: 100%; }
+  input:focus-visible, button:focus-visible, a:focus-visible { outline: 3px solid var(--magenta); outline-offset: 2px; }
+  button { font: inherit; font-weight: 700; padding: 14px 26px; border: 1.5px solid var(--ink); cursor: pointer; background: var(--ink); color: var(--paper); }
+  button:hover { background: var(--magenta); border-color: var(--magenta); }
+  #err { color: #b00020; font-size: 15px; }
+  .order-id { font-family: var(--mono); font-weight: 700; font-size: 20px; margin-bottom: 4px; }
+  .badge { display: inline-block; font-family: var(--mono); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; background: var(--magenta-soft); color: var(--magenta); padding: 4px 10px; margin-bottom: 24px; }
+  ol.trail { list-style: none; border-left: 2px solid var(--rule); padding-left: 20px; display: grid; gap: 18px; }
+  ol.trail li { position: relative; }
+  ol.trail li::before { content: ""; position: absolute; left: -25px; top: 4px; width: 10px; height: 10px; border-radius: 50%; background: var(--rule); }
+  ol.trail li.done::before { background: var(--ink); }
+  ol.trail li.done { color: var(--ink); }
+  ol.trail li:not(.done) { color: var(--ink-soft); }
+  ol.trail li .stage { font-weight: 700; text-transform: capitalize; }
+  ol.trail li .when { font-family: var(--mono); font-size: 12px; color: var(--ink-soft); }
+  .meetup { margin-top: 24px; padding: 14px 16px; background: var(--magenta-soft); font-size: 15px; }
+  a { color: var(--ink); text-decoration-color: var(--magenta); text-decoration-thickness: 2px; }
+  a:hover { color: var(--magenta); }
+  .back { display: inline-block; margin-bottom: 28px; font-family: var(--mono); font-size: 13px; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="/">&larr; Pringle Prints</a>
+  <p class="eyebrow">Order status</p>
+  <h1>Track your order</h1>
+  <p class="lede">Enter your order number and status link from your confirmation email.</p>
+
+  <form id="lookupForm">
+    <label class="field">
+      <span class="label-text">Order ID</span>
+      <input type="text" id="f-id" placeholder="PP-XXXXXXXX" required>
+    </label>
+    <label class="field">
+      <span class="label-text">Status token</span>
+      <input type="text" id="f-token" required>
+    </label>
+    <button type="submit">Look up order</button>
+    <p id="err"></p>
+  </form>
+
+  <section id="result" class="hidden"></section>
+</main>
+
+<script>
+  const API_BASE = "https://api.pringleprints.ca";
+  const el = (id) => document.getElementById(id);
+
+  const params = new URLSearchParams(location.search);
+  if (params.get("id")) el("f-id").value = params.get("id");
+  if (params.get("t")) el("f-token").value = params.get("t");
+
+  el("lookupForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    el("err").textContent = "";
+    const id = el("f-id").value.trim();
+    const t = el("f-token").value.trim();
+    if (!id || !t) return;
+
+    let data;
+    try {
+      const res = await fetch(`${API_BASE}/status?id=${encodeURIComponent(id)}&t=${encodeURIComponent(t)}`);
+      if (res.status === 404) throw new Error("Order not found — check the ID and token.");
+      if (!res.ok) throw new Error("Something went wrong looking that up.");
+      data = await res.json();
+    } catch (err) {
+      el("err").textContent = err.message || "Could not look up order.";
+      return;
+    }
+    render(data);
+  });
+
+  if (params.get("id") && params.get("t")) el("lookupForm").requestSubmit();
+
+  function render(o) {
+    const stages = o.stages || [];
+    const seen = new Set((o.history || []).map((h) => h.stage));
+    const when = (iso) => { try { return new Date(iso).toLocaleString(); } catch { return iso; } };
+    const historyAt = (stage) => (o.history || []).find((h) => h.stage === stage);
+
+    const trail = stages.map((s) => {
+      const done = seen.has(s);
+      const h = historyAt(s);
+      return `<li class="${done ? "done" : ""}">
+        <div class="stage">${s.replace(/-/g, " ")}</div>
+        ${h ? `<div class="when">${when(h.at)}</div>` : ""}
+      </li>`;
+    }).join("");
+
+    const meetup = o.fulfillment === "pickup" && o.status === "ready-for-pickup" && o.pickupLocation
+      ? `<div class="meetup">📍 Meet at: ${escapeHtml(o.pickupLocation)}</div>` : "";
+
+    el("result").innerHTML = `
+      <div class="order-id">${o.orderId}</div>
+      <div class="badge">${o.status.replace(/-/g, " ")}</div>
+      <ol class="trail">${trail}</ol>
+      ${meetup}
+    `;
+    el("result").classList.remove("hidden");
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c]));
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Place an Order — Pringle Prints</title>
+<meta name="robots" content="noindex">
+<script src="https://secure.helcim.app/helcim-pay/services/start.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #FDFDFB;
+    --ink: #16150F;
+    --ink-soft: #4A4940;
+    --rule: #D9D7CE;
+    --magenta: #E0197D;
+    --magenta-soft: #FCE9F3;
+    --mono: "IBM Plex Mono", ui-monospace, monospace;
+    --sans: "Archivo", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 17px; line-height: 1.55; }
+  main { max-width: 620px; margin: 0 auto; padding: 56px 24px 96px; }
+  .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--magenta); margin-bottom: 10px; }
+  h1 { font-weight: 850; font-stretch: 88%; font-size: clamp(32px, 6vw, 44px); line-height: 1.02; letter-spacing: -0.015em; margin-bottom: 10px; }
+  .lede { color: var(--ink-soft); max-width: 40em; margin-bottom: 36px; }
+  form { display: grid; gap: 22px; }
+  label.field { display: grid; gap: 7px; }
+  .label-text { font-family: var(--mono); font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; }
+  .hint { font-size: 14px; color: var(--ink-soft); }
+  input[type="email"], input[type="number"], input[type="file"], textarea {
+    font: inherit; padding: 12px 14px; border: 1.5px solid var(--ink); border-radius: 0; background: #fff; color: var(--ink); width: 100%;
+  }
+  textarea { min-height: 90px; resize: vertical; }
+  input:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visible {
+    outline: 3px solid var(--magenta); outline-offset: 2px;
+  }
+  .methods { display: grid; gap: 10px; }
+  .method { display: flex; gap: .6rem; align-items: flex-start; border: 1.5px solid var(--rule); padding: 12px 14px; cursor: pointer; }
+  .method input { width: auto; margin-top: 3px; }
+  .method small { color: var(--ink-soft); }
+  .total { margin-top: 4px; padding: 14px 16px; background: var(--magenta-soft); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .total span { float: right; }
+  .hidden { display: none; }
+  button { font: inherit; font-weight: 700; padding: 14px 26px; border: 1.5px solid var(--ink); cursor: pointer; background: var(--ink); color: var(--paper); }
+  button:hover { background: var(--magenta); border-color: var(--magenta); }
+  #msg { font-size: 15px; margin-top: 4px; }
+  #msg.ok { color: #0a7d33; }
+  #msg.err { color: #b00020; }
+  a { color: var(--ink); text-decoration-color: var(--magenta); text-decoration-thickness: 2px; }
+  a:hover { color: var(--magenta); }
+  .back { display: inline-block; margin-bottom: 28px; font-family: var(--mono); font-size: 13px; }
+  footer { max-width: 620px; margin: 0 auto; padding: 40px 24px 64px; font-family: var(--mono); font-size: 13px; color: var(--ink-soft); }
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="/">&larr; Pringle Prints</a>
+  <p class="eyebrow">Place an order</p>
+  <h1>Order form</h1>
+  <p class="lede">Pay securely by card, or use Interac e-Transfer at checkout — just paste your order number into the transfer message so we can match it automatically.</p>
+
+  <form id="orderForm">
+    <label class="field">
+      <span class="label-text">Email</span>
+      <input type="email" name="email" required>
+    </label>
+
+    <label class="field">
+      <span class="label-text">Order details</span>
+      <span class="hint">Batch size, finish, quantity, notes…</span>
+      <textarea name="details" rows="3"></textarea>
+    </label>
+
+    <label class="field">
+      <span class="label-text">Print price (CAD)</span>
+      <input type="number" id="price" name="price" step="0.01" min="0.50" required>
+    </label>
+
+    <label class="field">
+      <span class="label-text">How would you like it?</span>
+      <div class="methods" id="methods"><!-- filled from /config --></div>
+    </label>
+
+    <div id="addressWrap" class="hidden field">
+      <span class="label-text" id="addressLabel">Address</span>
+      <textarea name="address" rows="2" placeholder="Street, unit, city, postal code"></textarea>
+    </div>
+
+    <label class="field">
+      <span class="label-text">Print file — XML (optional)</span>
+      <input type="file" name="xml" accept=".xml,text/xml,application/xml">
+    </label>
+
+    <label class="field">
+      <span class="label-text">Print file — PDF (optional)</span>
+      <input type="file" name="pdf" accept=".pdf,application/pdf">
+    </label>
+
+    <div class="total" id="total"></div>
+
+    <div class="actions">
+      <button type="submit">Review &amp; pay</button>
+    </div>
+    <p id="msg" class="hint"></p>
+  </form>
+</main>
+
+<footer>
+  Pringle Prints · orders@pringleprints.ca · printed &amp; cut in Ottawa–Gatineau, Canada
+</footer>
+
+<script>
+  const API_BASE = "https://api.pringleprints.ca";
+
+  const $ = (id) => document.getElementById(id);
+  const money = (c) => "$" + (c / 100).toFixed(2);
+  const labels = { pickup: "Local pickup", delivery: "Local delivery (Ottawa)", mail: "Mail" };
+  let CFG = null;
+
+  (async () => {
+    try {
+      CFG = await (await fetch(API_BASE + "/config")).json();
+    } catch {
+      CFG = { methods: ["pickup", "delivery", "mail"], fees: { pickup: 0, delivery: 0, mail: 1500 },
+               freeDeliveryOverCents: 0, minOrderCents: 0 };
+    }
+    renderMethods();
+    recalc();
+  })();
+
+  function renderMethods() {
+    $("methods").innerHTML = CFG.methods.map((m, i) => {
+      const fee = CFG.fees[m] || 0;
+      let note = fee === 0 ? "Free" : money(fee);
+      if (m === "delivery" && CFG.freeDeliveryOverCents > 0)
+        note += ` · free over ${money(CFG.freeDeliveryOverCents)}`;
+      return `<label class="method">
+        <input type="radio" name="fulfillment" value="${m}" ${i === 0 ? "checked" : ""}>
+        <span><b>${labels[m] || m}</b><br><small>${note}</small></span>
+      </label>`;
+    }).join("");
+    $("methods").addEventListener("change", onMethodChange);
+    $("price").addEventListener("input", recalc);
+    onMethodChange();
+  }
+
+  function chosenMethod() {
+    const el = document.querySelector('input[name="fulfillment"]:checked');
+    return el ? el.value : "pickup";
+  }
+
+  function feeFor(method, baseCents) {
+    let fee = CFG.fees[method] || 0;
+    if (method === "delivery" && CFG.freeDeliveryOverCents > 0 && baseCents >= CFG.freeDeliveryOverCents) fee = 0;
+    return fee;
+  }
+
+  function onMethodChange() {
+    const m = chosenMethod();
+    const needsAddr = m === "delivery" || m === "mail";
+    $("addressWrap").classList.toggle("hidden", !needsAddr);
+    $("addressLabel").textContent = m === "mail" ? "Mailing address" : "Delivery address";
+    document.querySelector('[name="address"]').required = needsAddr;
+    recalc();
+  }
+
+  function recalc() {
+    const baseCents = Math.round(parseFloat($("price").value || "0") * 100);
+    const fee = feeFor(chosenMethod(), baseCents);
+    const total = baseCents + fee;
+    $("total").innerHTML =
+      `Print: <span>${money(baseCents)}</span><br>` +
+      `${labels[chosenMethod()]}: <span>${fee === 0 ? "Free" : money(fee)}</span><br>` +
+      `<hr style="border:none;border-top:1px solid var(--rule);margin:.5rem 0">Total: <span>${money(total)}</span>`;
+  }
+
+  $("orderForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const msg = $("msg");
+    msg.className = "hint";
+    msg.textContent = "Creating your order…";
+
+    const fd = new FormData($("orderForm"));
+    const dollars = parseFloat(fd.get("price") || "0");
+    fd.set("amountCents", String(Math.round(dollars * 100)));
+    fd.delete("price");
+
+    let data;
+    try {
+      const res = await fetch(API_BASE + "/order", { method: "POST", body: fd });
+      data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Order failed");
+    } catch (err) {
+      msg.className = "err";
+      msg.textContent = "Sorry — " + err.message;
+      return;
+    }
+
+    const statusUrl = `/status.html?id=${data.orderId}&t=${data.statusToken}`;
+
+    if (data.free) {
+      msg.className = "ok";
+      msg.innerHTML = `This one's on us! Order <b>${data.orderId}</b> is in.
+                       <a href="${statusUrl}">Track it here.</a>`;
+      return;
+    }
+
+    if (data.freeReward) {
+      msg.textContent = "Your print is free — you'll just pay shipping. Opening payment…";
+    } else {
+      msg.textContent = "Opening secure payment…";
+    }
+    appendHelcimPayIframe(data.checkoutToken);
+
+    window.addEventListener("message", (event) => {
+      const helcimId = "helcim-pay-js-" + data.checkoutToken;
+      if (event.data && event.data.eventName === helcimId) {
+        if (event.data.eventStatus === "SUCCESS") {
+          msg.className = "ok";
+          msg.innerHTML = `Paid! Order <b>${data.orderId}</b> received.
+                           <a href="${statusUrl}">Track it here.</a>`;
+        } else if (event.data.eventStatus === "ABORTED") {
+          msg.className = "err";
+          msg.textContent = "Payment was cancelled.";
+        }
+      }
+    });
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>PringlePrints — Order Admin</title>
+  <style>
+    :root { --bg:#f6f6f7; --card:#fff; --line:#e3e3e6; --ink:#111; --muted:#6b7280; }
+    * { box-sizing: border-box; }
+    body { font: 16px/1.5 system-ui, sans-serif; margin: 0; background: var(--bg); color: var(--ink); }
+    header { position: sticky; top: 0; background: #111; color: #fff; padding: .8rem 1rem;
+             display: flex; align-items: center; gap: .75rem; }
+    header h1 { font-size: 1.05rem; margin: 0; flex: 1; }
+    header button { background: #333; color: #fff; border: 0; border-radius: 8px; padding: .4rem .7rem; }
+    main { max-width: 680px; margin: 0 auto; padding: 1rem; }
+    .login { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 1.25rem; }
+    label { display: block; font-weight: 600; margin: .8rem 0 .25rem; }
+    input, select { width: 100%; padding: .6rem; border: 1px solid #ccc; border-radius: 8px; font: inherit; }
+    .primary { background: #111; color: #fff; border: 0; border-radius: 8px; padding: .7rem 1.1rem;
+               font-weight: 600; cursor: pointer; margin-top: 1rem; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+            padding: 1rem; margin-bottom: .9rem; }
+    .row { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+    .id { font-weight: 700; letter-spacing: .3px; }
+    .amt { margin-left: auto; font-weight: 700; }
+    .muted { color: var(--muted); font-size: .88rem; }
+    .badge { font-size: .74rem; font-weight: 700; padding: .15rem .5rem; border-radius: 999px;
+             text-transform: uppercase; letter-spacing: .3px; }
+    .b-pending-payment { background:#fde68a; color:#78350f; }
+    .b-processing { background:#dbeafe; color:#1e3a8a; }
+    .b-printing { background:#e9d5ff; color:#581c87; }
+    .b-cutting { background:#fbcfe8; color:#831843; }
+    .b-out-for-delivery { background:#bbf7d0; color:#14532d; }
+    .b-ready-for-pickup { background:#bbf7d0; color:#14532d; }
+    .b-shipped { background:#bbf7d0; color:#14532d; }
+    .b-delivered, .b-picked-up { background:#e5e7eb; color:#374151; }
+    .pill { font-size:.74rem; background:#eef2ff; color:#3730a3; padding:.15rem .5rem; border-radius:999px; }
+    .flag { background:#fee2e2; color:#991b1b; font-size:.78rem; padding:.2rem .5rem; border-radius:8px; }
+    .free { background:#dcfce7; color:#166534; font-size:.78rem; padding:.2rem .5rem; border-radius:8px; }
+    .actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .8rem; }
+    .actions button, .actions a { border: 1px solid #ccc; background:#fff; border-radius: 8px;
+             padding: .5rem .8rem; font: inherit; cursor: pointer; text-decoration: none; color: var(--ink); }
+    .advance { background: #111; color: #fff; border-color: #111; font-weight: 600; }
+    .confirm { background: #166534; color: #fff; border-color: #166534; font-weight: 600; }
+    .hidden { display: none; }
+    #err { color:#b00020; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Order Admin</h1>
+    <button id="refreshBtn" class="hidden">Refresh</button>
+    <button id="logoutBtn" class="hidden">Lock</button>
+  </header>
+
+  <main>
+    <!-- LOGIN -->
+    <section id="login" class="login">
+      <p class="muted">Enter your Worker URL and admin token. Kept only in this tab.</p>
+      <label>Worker base URL</label>
+      <input id="apiBase" placeholder="https://api.pringleprints.ca" />
+      <label>Admin token</label>
+      <input id="token" type="password" placeholder="your ADMIN_TOKEN" />
+      <label class="row" style="font-weight:400;margin-top:.8rem">
+        <input type="checkbox" id="openOnly" checked style="width:auto;margin-right:.5rem" />
+        Hide delivered orders
+      </label>
+      <button class="primary" id="loginBtn">Load orders</button>
+      <p id="err"></p>
+    </section>
+
+    <!-- LIST -->
+    <section id="list" class="hidden"></section>
+  </main>
+
+  <script>
+    // Fallback only; each order carries its own method-specific `stages` array.
+    const STAGES = ["pending-payment","processing","printing","cutting","ready-for-pickup","picked-up"];
+    const METHOD_LABEL = { pickup:"Pickup", delivery:"Delivery", mail:"Mail" };
+    const el = (id) => document.getElementById(id);
+    const cents = (c) => "$" + (c/100).toFixed(2);
+    const when = (iso) => { try { return new Date(iso).toLocaleString(); } catch { return iso; } };
+
+    // Session state (this tab only — cleared on close or Lock).
+    let API = sessionStorage.getItem("pp_api") || "";
+    let TOKEN = sessionStorage.getItem("pp_token") || "";
+    if (API) el("apiBase").value = API;
+
+    el("loginBtn").addEventListener("click", async () => {
+      API = el("apiBase").value.trim().replace(/\/$/, "");
+      TOKEN = el("token").value.trim();
+      if (!API || !TOKEN) { el("err").textContent = "Both fields are required."; return; }
+      sessionStorage.setItem("pp_api", API);
+      sessionStorage.setItem("pp_token", TOKEN);
+      await load();
+    });
+
+    el("refreshBtn").addEventListener("click", load);
+    el("logoutBtn").addEventListener("click", () => {
+      sessionStorage.removeItem("pp_token");
+      TOKEN = "";
+      location.reload();
+    });
+
+    function auth() { return { authorization: "Bearer " + TOKEN }; }
+
+    async function load() {
+      el("err").textContent = "";
+      const openOnly = el("openOnly").checked ? "&open=1" : "";
+      let data;
+      try {
+        const res = await fetch(`${API}/admin/orders?limit=200${openOnly}`, { headers: auth() });
+        if (res.status === 401) throw new Error("Unauthorized — check your token.");
+        data = await res.json();
+      } catch (e) {
+        el("err").textContent = e.message || "Could not load orders.";
+        return;
+      }
+      el("login").classList.add("hidden");
+      el("list").classList.remove("hidden");
+      el("refreshBtn").classList.remove("hidden");
+      el("logoutBtn").classList.remove("hidden");
+      render(data.orders || []);
+    }
+
+    function render(orders) {
+      const list = el("list");
+      if (!orders.length) { list.innerHTML = `<p class="muted">No orders.</p>`; return; }
+      list.innerHTML = orders.map(cardHtml).join("");
+      list.querySelectorAll("[data-advance]").forEach((b) =>
+        b.addEventListener("click", () => advance(b.dataset.advance, b.dataset.next || null, b.dataset.method, b.dataset.next || null)));
+      list.querySelectorAll("[data-jump]").forEach((s) =>
+        s.addEventListener("change", () => advance(s.dataset.jump, s.value, s.dataset.method, s.value)));
+      list.querySelectorAll("[data-file]").forEach((a) =>
+        a.addEventListener("click", (e) => { e.preventDefault(); download(a.dataset.file, a.dataset.field, a.dataset.name); }));
+    }
+
+    function cardHtml(o) {
+      const stages = o.stages || STAGES;
+      const next = stages[stages.indexOf(o.status) + 1];
+      const needsConfirm = !o.paid && o.etransferMatch;
+      const pay = o.freeReward ? `<span class="free">FREE print${o.shippingCents ? " + shipping" : ""}</span>`
+                : o.paid ? `<span class="muted">paid · ${o.paymentMethod || "—"}</span>`
+                : needsConfirm ? `<span class="flag">e-transfer — verify & confirm</span>`
+                : `<span class="flag">awaiting payment</span>`;
+      const ship = o.shippingCents ? ` + ${cents(o.shippingCents)} ship` : "";
+      const method = `<span class="pill">${METHOD_LABEL[o.fulfillment] || o.fulfillment || "—"}</span>`;
+      const files = (o.files || []).map((f) =>
+        `<a href="#" data-file="${o.id}" data-field="${f.field}" data-name="${f.name}">⬇ ${f.field.toUpperCase()}</a>`).join("");
+      const jump = `<select data-jump="${o.id}" data-method="${o.fulfillment}">
+          ${stages.map((s) => `<option value="${s}" data-jump-value="${s}" ${s===o.status?"selected":""}>${s}</option>`).join("")}
+        </select>`;
+      const advanceBtn = needsConfirm
+        ? `<button class="confirm" data-advance="${o.id}" data-method="${o.fulfillment}" data-next="${next || ""}">Confirm payment & start</button>`
+        : next ? `<button class="advance" data-advance="${o.id}" data-method="${o.fulfillment}" data-next="${next}">→ ${next}</button>` : "";
+      return `<div class="card">
+        <div class="row">
+          <span class="id">${o.id}</span>
+          <span class="badge b-${o.status}">${o.status}</span>
+          <span class="amt">${cents(o.amountCents)}</span>
+        </div>
+        <div class="row muted" style="margin-top:.2rem">${method} ${o.email} · ${when(o.createdAt)}${ship ? ` · ${cents(o.basePriceCents)}${ship}` : ""}</div>
+        ${o.address ? `<div class="muted">📍 ${escapeHtml(o.address)}</div>` : ""}
+        ${o.fulfillment === "pickup" && o.pickupLocation ? `<div class="muted">📍 Meet at: ${escapeHtml(o.pickupLocation)}</div>` : ""}
+        ${o.details ? `<div class="muted">“${escapeHtml(o.details)}”</div>` : ""}
+        <div class="row" style="margin-top:.4rem">${pay} ${files}</div>
+        <div class="actions">${advanceBtn} ${jump}</div>
+      </div>`;
+    }
+
+    async function advance(orderId, stage, method, targetStage) {
+      let pickupLocation;
+      if (method === "pickup" && targetStage === "ready-for-pickup") {
+        pickupLocation = prompt("Where will you meet the customer? (shown in their email)");
+        if (pickupLocation === null) return; // cancelled — don't advance
+        pickupLocation = pickupLocation.trim();
+      }
+      const body = stage ? { orderId, stage } : { orderId };
+      if (pickupLocation) body.pickupLocation = pickupLocation;
+      try {
+        const res = await fetch(`${API}/admin/advance`, {
+          method: "POST",
+          headers: { ...auth(), "content-type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        await load();
+      } catch (e) {
+        el("err").textContent = "Update failed: " + (e.message || e);
+      }
+    }
+
+    async function download(id, field, name) {
+      try {
+        const res = await fetch(`${API}/admin/file?id=${encodeURIComponent(id)}&field=${field}`, { headers: auth() });
+        if (!res.ok) throw new Error("download failed");
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = name || `${id}.${field}`;
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        el("err").textContent = "Could not download file.";
+      }
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"]/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c]));
+    }
+
+    // Auto-load if we still have a token from earlier in this tab session.
+    if (API && TOKEN) load();
+  </script>
+</body>
+</html>
