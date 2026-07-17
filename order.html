@@ -106,6 +106,11 @@
       <button type="submit">Review &amp; pay</button>
     </div>
     <p id="msg" class="hint"></p>
+    <div id="orderIdBox" class="hidden total" style="background:#fff;border:1.5px solid var(--ink)">
+      Order number: <b id="orderIdText"></b>
+      <button type="button" id="copyOrderBtn" style="margin-left:8px;padding:4px 10px;font-size:14px">Copy for e-Transfer</button>
+      <div class="hint" style="margin-top:6px">Paying by e-Transfer? Paste this into the transfer message.</div>
+    </div>
   </form>
 </main>
 
@@ -211,6 +216,15 @@
                        <a href="${statusUrl}">Track it here.</a>`;
       return;
     }
+
+    $("orderIdText").textContent = data.orderId;
+    $("orderIdBox").classList.remove("hidden");
+    $("copyOrderBtn").onclick = () => {
+      navigator.clipboard.writeText(data.orderId).then(() => {
+        $("copyOrderBtn").textContent = "Copied!";
+        setTimeout(() => { $("copyOrderBtn").textContent = "Copy for e-Transfer"; }, 1500);
+      });
+    };
 
     if (data.freeReward) {
       msg.textContent = "Your print is free — you'll just pay shipping. Opening payment…";

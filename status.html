@@ -121,13 +121,28 @@
     const meetup = o.fulfillment === "pickup" && o.status === "ready-for-pickup" && o.pickupLocation
       ? `<div class="meetup">📍 Meet at: ${escapeHtml(o.pickupLocation)}</div>` : "";
 
+    const payNote = !o.paid
+      ? `<div class="meetup">Still need to pay? Paste your order number into an Interac e-Transfer message.
+           <button type="button" id="copyOrderBtn" style="margin-left:8px;padding:4px 10px;font-size:14px">Copy for e-Transfer</button>
+         </div>` : "";
+
     el("result").innerHTML = `
       <div class="order-id">${o.orderId}</div>
       <div class="badge">${o.status.replace(/-/g, " ")}</div>
       <ol class="trail">${trail}</ol>
       ${meetup}
+      ${payNote}
     `;
     el("result").classList.remove("hidden");
+
+    if (!o.paid) {
+      el("copyOrderBtn").addEventListener("click", () => {
+        navigator.clipboard.writeText(o.orderId).then(() => {
+          el("copyOrderBtn").textContent = "Copied!";
+          setTimeout(() => { el("copyOrderBtn").textContent = "Copy for e-Transfer"; }, 1500);
+        });
+      });
+    }
   }
 
   function escapeHtml(s) {
