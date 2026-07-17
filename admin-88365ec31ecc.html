@@ -180,7 +180,7 @@
       const stages = o.stages || STAGES;
       const next = stages[stages.indexOf(o.status) + 1];
       const needsConfirm = !o.paid && o.etransferMatch;
-      const pay = o.freeReward ? `<span class="free">FREE print${o.shippingCents ? " + shipping" : ""}</span>`
+      const pay = o.freeReward ? `<span class="free">Loyalty discount applied</span>`
                 : o.paid ? `<span class="muted">paid · ${o.paymentMethod || "—"}</span>`
                 : needsConfirm ? `<span class="flag">e-transfer — verify & confirm</span>`
                 : `<span class="flag">awaiting payment</span>`;

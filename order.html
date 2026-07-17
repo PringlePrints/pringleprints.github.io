@@ -227,7 +227,8 @@
     };
 
     if (data.freeReward) {
-      msg.textContent = "Your print is free — you'll just pay shipping. Opening payment…";
+      const rewardText = CFG.loyaltyRewardCents ? money(CFG.loyaltyRewardCents) + " loyalty discount" : "loyalty discount";
+      msg.textContent = `Your ${rewardText} has been applied to this order. Opening payment for the rest…`;
     } else {
       msg.textContent = "Opening secure payment…";
     }
