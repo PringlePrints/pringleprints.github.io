@@ -9,6 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="/assets.js"></script>
 <style>
   :root {
     --paper: #FDFDFB;
@@ -46,6 +47,7 @@
   .hidden { display: none; }
   button { font: inherit; font-weight: 700; padding: 14px 26px; border: 1.5px solid var(--ink); cursor: pointer; background: var(--ink); color: var(--paper); }
   button:hover { background: var(--magenta); border-color: var(--magenta); }
+  button:disabled { opacity: .55; cursor: not-allowed; background: var(--ink-soft); border-color: var(--ink-soft); }
   #msg { font-size: 15px; margin-top: 4px; }
   #msg.ok { color: #0a7d33; }
   #msg.err { color: #b00020; }
@@ -122,7 +124,6 @@
   const API_BASE = "https://api.pringleprints.ca";
 
   const $ = (id) => document.getElementById(id);
-  const money = (c) => "$" + (c / 100).toFixed(2);
   const labels = { pickup: "Local pickup", delivery: "Local delivery (Ottawa)", mail: "Mail" };
   let CFG = null;
 
@@ -186,11 +187,38 @@
       `<hr style="border:none;border-top:1px solid var(--rule);margin:.5rem 0">Total: <span>${money(total)}</span>`;
   }
 
+  // Tracks the order currently awaiting a Helcim result, so the single
+  // top-level "message" listener below knows what it's listening for.
+  let currentCheckout = null;
+
+  window.addEventListener("message", (event) => {
+    if (!currentCheckout) return;
+    const helcimId = "helcim-pay-js-" + currentCheckout.checkoutToken;
+    if (event.data && event.data.eventName === helcimId) {
+      const msg = $("msg");
+      if (event.data.eventStatus === "SUCCESS") {
+        msg.className = "ok";
+        msg.innerHTML = `Paid! Order <b>${currentCheckout.orderId}</b> received.
+                         <a href="${currentCheckout.statusUrl}">Track it here.</a>`;
+        currentCheckout = null;
+      } else if (event.data.eventStatus === "ABORTED") {
+        msg.className = "err";
+        msg.textContent = "Payment was cancelled. You can try again below.";
+        currentCheckout = null;
+        const submitBtn = $("orderForm").querySelector('button[type="submit"]');
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Review & pay";
+      }
+    }
+  });
+
   $("orderForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const msg = $("msg");
+    const submitBtn = e.submitter || $("orderForm").querySelector('button[type="submit"]');
     msg.className = "hint";
     msg.textContent = "Creating your order…";
+    submitBtn.disabled = true;
 
     const fd = new FormData($("orderForm"));
     const dollars = parseFloat(fd.get("price") || "0");
@@ -205,6 +233,7 @@
     } catch (err) {
       msg.className = "err";
       msg.textContent = "Sorry — " + err.message;
+      submitBtn.disabled = false;
       return;
     }
 
@@ -214,17 +243,13 @@
       msg.className = "ok";
       msg.innerHTML = `This one's on us! Order <b>${data.orderId}</b> is in.
                        <a href="${statusUrl}">Track it here.</a>`;
+      submitBtn.textContent = "Order placed";
       return;
     }
 
     $("orderIdText").textContent = data.orderId;
     $("orderIdBox").classList.remove("hidden");
-    $("copyOrderBtn").onclick = () => {
-      navigator.clipboard.writeText(data.orderId).then(() => {
-        $("copyOrderBtn").textContent = "Copied!";
-        setTimeout(() => { $("copyOrderBtn").textContent = "Copy for e-Transfer"; }, 1500);
-      });
-    };
+    bindCopyButton($("copyOrderBtn"), () => data.orderId);
 
     if (data.freeReward) {
       const rewardText = CFG.loyaltyRewardCents ? money(CFG.loyaltyRewardCents) + " loyalty discount" : "loyalty discount";
@@ -232,21 +257,9 @@
     } else {
       msg.textContent = "Opening secure payment…";
     }
+    currentCheckout = { checkoutToken: data.checkoutToken, orderId: data.orderId, statusUrl };
     appendHelcimPayIframe(data.checkoutToken);
-
-    window.addEventListener("message", (event) => {
-      const helcimId = "helcim-pay-js-" + data.checkoutToken;
-      if (event.data && event.data.eventName === helcimId) {
-        if (event.data.eventStatus === "SUCCESS") {
-          msg.className = "ok";
-          msg.innerHTML = `Paid! Order <b>${data.orderId}</b> received.
-                           <a href="${statusUrl}">Track it here.</a>`;
-        } else if (event.data.eventStatus === "ABORTED") {
-          msg.className = "err";
-          msg.textContent = "Payment was cancelled.";
-        }
-      }
-    });
+    submitBtn.textContent = "Payment opened below";
   });
 </script>
 </body>
