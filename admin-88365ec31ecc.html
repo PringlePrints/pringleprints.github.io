@@ -50,6 +50,7 @@
 <body>
   <header>
     <h1>Order Admin</h1>
+    <button id="loyaltyBtn" class="hidden">Loyalty</button>
     <button id="refreshBtn" class="hidden">Refresh</button>
     <button id="logoutBtn" class="hidden">Lock</button>
   </header>
@@ -102,8 +103,46 @@
       TOKEN = "";
       location.reload();
     });
+    el("loyaltyBtn").addEventListener("click", manageLoyalty);
 
     function auth() { return { authorization: "Bearer " + TOKEN }; }
+
+    async function manageLoyalty() {
+      const email = prompt("Customer email:");
+      if (!email || !email.trim()) return;
+      let current;
+      try {
+        const res = await fetch(`${API}/admin/loyalty?email=${encodeURIComponent(email.trim())}`, { headers: auth() });
+        if (!res.ok) throw new Error(await res.text());
+        current = await res.json();
+      } catch (e) {
+        alert("Could not look up loyalty count: " + (e.message || e));
+        return;
+      }
+      const input = prompt(
+        `${current.email} has ${current.count} qualifying order(s) toward their next free one ` +
+        `(every ${current.freeEvery}th is free — ${current.remaining} more to go). Enter a new count:`,
+        String(current.count)
+      );
+      if (input === null) return;
+      const count = parseInt(input, 10);
+      if (!Number.isFinite(count) || count < 0) {
+        alert("Count must be a non-negative whole number.");
+        return;
+      }
+      try {
+        const res = await fetch(`${API}/admin/loyalty`, {
+          method: "POST",
+          headers: { ...auth(), "content-type": "application/json" },
+          body: JSON.stringify({ email: current.email, count }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const updated = await res.json();
+        alert(`Updated. ${updated.email} is now at ${updated.count} (${updated.remaining} more until their next free order).`);
+      } catch (e) {
+        alert("Could not update loyalty count: " + (e.message || e));
+      }
+    }
 
     async function load() {
       el("err").textContent = "";
@@ -121,6 +160,7 @@
       el("list").classList.remove("hidden");
       el("refreshBtn").classList.remove("hidden");
       el("logoutBtn").classList.remove("hidden");
+      el("loyaltyBtn").classList.remove("hidden");
       render(data.orders || []);
     }
 
