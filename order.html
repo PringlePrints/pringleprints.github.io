@@ -63,7 +63,6 @@
   <p class="eyebrow">Place an order</p>
   <h1>Order form</h1>
   <p class="lede">Pay securely by card, or use Interac e-Transfer at checkout — just paste your order number into the transfer message so we can match it automatically.</p>
-  <p class="hint" id="etransferInfo"></p>
 
   <form id="orderForm">
     <label class="field">
@@ -126,7 +125,7 @@
     <div id="orderIdBox" class="hidden total" style="background:#fff;border:1.5px solid var(--ink)">
       Order number: <b id="orderIdText"></b>
       <button type="button" id="copyOrderBtn" style="margin-left:8px;padding:4px 10px;font-size:14px">Copy for e-Transfer</button>
-      <div class="hint" style="margin-top:6px">Paying by e-Transfer? Paste this into the transfer message.</div>
+      <div class="hint" id="etransferInfo" style="margin-top:6px"></div>
     </div>
   </form>
 </main>
@@ -152,7 +151,7 @@
     renderMethods();
     recalc();
     if (CFG.etransferAddress) {
-      $("etransferInfo").innerHTML = `Sending an e-Transfer? Send it to <a href="mailto:${CFG.etransferAddress}">${CFG.etransferAddress}</a> with your order number in the message.`;
+      $("etransferInfo").innerHTML = `Paying by e-Transfer? Send it to <a href="mailto:${CFG.etransferAddress}">${CFG.etransferAddress}</a> with your order number in the message.`;
     }
   })();
 
