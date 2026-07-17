@@ -31,7 +31,7 @@
   label.field { display: grid; gap: 7px; }
   .label-text { font-family: var(--mono); font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; }
   .hint { font-size: 14px; color: var(--ink-soft); }
-  input[type="email"], input[type="number"], input[type="file"], textarea {
+  input[type="email"], input[type="number"], input[type="file"], select, textarea {
     font: inherit; padding: 12px 14px; border: 1.5px solid var(--ink); border-radius: 0; background: #fff; color: var(--ink); width: 100%;
   }
   textarea { min-height: 90px; resize: vertical; }
@@ -72,14 +72,29 @@
     </label>
 
     <label class="field">
-      <span class="label-text">Order details</span>
-      <span class="hint">Batch size, finish, quantity, notes…</span>
-      <textarea name="details" rows="3"></textarea>
+      <span class="label-text">Batch size</span>
+      <select id="batchSize">
+        <option value="2500" selected>Up to 112 cards — $25</option>
+        <option value="5000">Up to 224 cards — $50</option>
+        <option value="7500">Up to 336 cards — $75</option>
+        <option value="10000">Up to 448 cards — $100</option>
+        <option value="12500">Up to 672 cards — $125 (best value)</option>
+      </select>
     </label>
 
     <label class="field">
-      <span class="label-text">Print price (CAD)</span>
-      <input type="number" id="price" name="price" step="0.01" min="0.50" required>
+      <span class="label-text">Card finish</span>
+      <select id="finish">
+        <option value="Standard cardstock" data-surcharge="0" selected>Standard cardstock (recommended)</option>
+        <option value="Double-sided glossy laminate" data-surcharge="500">Double-sided glossy laminate (+$5)</option>
+        <option value="Satin front + matte laminate back" data-surcharge="500">Satin front + matte laminate back (+$5)</option>
+      </select>
+    </label>
+
+    <label class="field">
+      <span class="label-text">Notes / special requests</span>
+      <span class="hint">Anything we should know — e.g. “laminate the tokens only,” quantity details, timing.</span>
+      <textarea name="details" id="notes" rows="3"></textarea>
     </label>
 
     <label class="field">
@@ -153,8 +168,15 @@
       </label>`;
     }).join("");
     $("methods").addEventListener("change", onMethodChange);
-    $("price").addEventListener("input", recalc);
+    $("batchSize").addEventListener("change", recalc);
+    $("finish").addEventListener("change", recalc);
     onMethodChange();
+  }
+
+  function baseCents() {
+    const batchCents = parseInt($("batchSize").value, 10) || 0;
+    const surcharge = parseInt($("finish").selectedOptions[0].dataset.surcharge || "0", 10);
+    return batchCents + surcharge;
   }
 
   function chosenMethod() {
@@ -178,11 +200,14 @@
   }
 
   function recalc() {
-    const baseCents = Math.round(parseFloat($("price").value || "0") * 100);
-    const fee = feeFor(chosenMethod(), baseCents);
-    const total = baseCents + fee;
+    const base = baseCents();
+    const fee = feeFor(chosenMethod(), base);
+    const total = base + fee;
+    const batchLabel = $("batchSize").selectedOptions[0].textContent;
+    const finishLabel = $("finish").selectedOptions[0].textContent;
     $("total").innerHTML =
-      `Print: <span>${money(baseCents)}</span><br>` +
+      `${batchLabel}<br>` +
+      `${finishLabel}<br>` +
       `${labels[chosenMethod()]}: <span>${fee === 0 ? "Free" : money(fee)}</span><br>` +
       `<hr style="border:none;border-top:1px solid var(--rule);margin:.5rem 0">Total: <span>${money(total)}</span>`;
   }
@@ -221,9 +246,11 @@
     submitBtn.disabled = true;
 
     const fd = new FormData($("orderForm"));
-    const dollars = parseFloat(fd.get("price") || "0");
-    fd.set("amountCents", String(Math.round(dollars * 100)));
-    fd.delete("price");
+    const batchLabel = $("batchSize").selectedOptions[0].textContent;
+    const finishLabel = $("finish").selectedOptions[0].textContent;
+    const notes = (fd.get("details") || "").trim();
+    fd.set("details", `Batch: ${batchLabel}\nFinish: ${finishLabel}` + (notes ? `\nNotes: ${notes}` : ""));
+    fd.set("amountCents", String(baseCents()));
 
     let data;
     try {
