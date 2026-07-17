@@ -45,6 +45,18 @@
   .total { margin-top: 4px; padding: 14px 16px; background: var(--magenta-soft); font-weight: 700; font-variant-numeric: tabular-nums; }
   .total span { float: right; }
   .hidden { display: none; }
+  .upload { border: 1.5px dashed var(--ink); padding: 22px 16px; text-align: center; cursor: pointer; transition: background-color .15s, border-color .15s; }
+  .upload:hover, .upload:focus-visible { background: var(--magenta-soft); border-color: var(--magenta); }
+  .upload.dragover { background: var(--magenta-soft); border-color: var(--magenta); border-style: solid; }
+  .upload-copy strong { display: block; margin-bottom: 4px; }
+  .upload-copy .hint { display: block; }
+  .file-list { display: grid; gap: 8px; margin-top: 4px; list-style: none; }
+  .file-item { display: flex; align-items: center; gap: 10px; border: 1.5px solid var(--rule); padding: 8px 12px; }
+  .file-ext { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .06em; background: var(--ink); color: var(--paper); padding: 2px 6px; flex-shrink: 0; }
+  .file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+  .file-remove { background: none; border: none; color: var(--ink-soft); font-weight: 700; padding: 2px 6px; cursor: pointer; font-size: 14px; }
+  .file-remove:hover { background: none; border: none; color: var(--magenta); }
+  #fileMsg.err { color: #b00020; }
   button { font: inherit; font-weight: 700; padding: 14px 26px; border: 1.5px solid var(--ink); cursor: pointer; background: var(--ink); color: var(--paper); }
   button:hover { background: var(--magenta); border-color: var(--magenta); }
   button:disabled { opacity: .55; cursor: not-allowed; background: var(--ink-soft); border-color: var(--ink-soft); }
@@ -106,15 +118,20 @@
       <textarea name="address" rows="2" placeholder="Street, unit, city, postal code"></textarea>
     </div>
 
-    <label class="field">
-      <span class="label-text">Print file — XML (optional)</span>
-      <input type="file" name="xml" accept=".xml,text/xml,application/xml">
-    </label>
-
-    <label class="field">
-      <span class="label-text">Print file — PDF (optional)</span>
-      <input type="file" name="pdf" accept=".pdf,application/pdf">
-    </label>
+    <div class="field">
+      <span class="label-text">Print file (optional)</span>
+      <div class="upload" id="uploadZone" tabindex="0" role="button" aria-label="Upload your print file">
+        <div class="upload-copy">
+          <strong>Upload your print file (PDF)</strong>
+          <span class="hint">Drag &amp; drop, or click to browse. You can include an XML job ticket too, if you have one.</span>
+        </div>
+      </div>
+      <input type="file" id="filePicker" accept=".pdf,.xml" multiple hidden>
+      <input type="file" name="xml" accept=".xml,text/xml,application/xml" hidden>
+      <input type="file" name="pdf" accept=".pdf,application/pdf" hidden>
+      <ul id="fileList" class="file-list"></ul>
+      <p id="fileMsg" class="hint hidden"></p>
+    </div>
 
     <div class="total" id="total"></div>
 
@@ -210,6 +227,105 @@
       `${labels[chosenMethod()]}: <span>${fee === 0 ? "Free" : money(fee)}</span><br>` +
       `<hr style="border:none;border-top:1px solid var(--rule);margin:.5rem 0">Total: <span>${money(total)}</span>`;
   }
+
+  // The unified upload control sorts dropped/picked files by extension into
+  // these two hidden inputs (name="pdf"/"xml") so the FormData built on
+  // submit is byte-identical to the old two-separate-inputs form — the
+  // backend's wire format (form field names "pdf"/"xml") never changes.
+  function extOf(file) {
+    const m = /\.([a-z0-9]+)$/i.exec((file && file.name) || "");
+    return m ? m[1].toLowerCase() : "";
+  }
+
+  function fileInputFor(kind) {
+    return document.querySelector(`input[type="file"][name="${kind}"]`);
+  }
+
+  function currentFile(kind) {
+    const input = fileInputFor(kind);
+    return input.files && input.files[0] ? input.files[0] : null;
+  }
+
+  function setFileFor(kind, file) {
+    const dt = new DataTransfer();
+    if (file) dt.items.add(file);
+    fileInputFor(kind).files = dt.files;
+  }
+
+  function renderFileList() {
+    const items = [];
+    const pdf = currentFile("pdf");
+    const xml = currentFile("xml");
+    if (pdf) items.push({ kind: "pdf", name: pdf.name });
+    if (xml) items.push({ kind: "xml", name: xml.name });
+    $("fileList").innerHTML = items.map((it) =>
+      `<li class="file-item" data-kind="${it.kind}">` +
+      `<span class="file-ext">${it.kind.toUpperCase()}</span>` +
+      `<span class="file-name">${escapeHtml(it.name)}</span>` +
+      `<button type="button" class="file-remove" data-kind="${it.kind}" aria-label="Remove ${it.kind.toUpperCase()} file">&times;</button>` +
+      `</li>`
+    ).join("");
+  }
+
+  function showFileMessage(lines, isErr) {
+    const el = $("fileMsg");
+    if (!lines.length) {
+      el.textContent = "";
+      el.className = "hint hidden";
+      return;
+    }
+    el.innerHTML = lines.map(escapeHtml).join("<br>");
+    el.className = isErr ? "hint err" : "hint";
+  }
+
+  function handleIncomingFiles(fileList) {
+    const errs = [];
+    const notices = [];
+    for (const file of fileList) {
+      const ext = extOf(file);
+      if (ext !== "pdf" && ext !== "xml") {
+        errs.push(`"${file.name}" isn't a PDF or XML file, so it was skipped.`);
+        continue;
+      }
+      if (currentFile(ext)) {
+        notices.push(`Replaced the previous ${ext.toUpperCase()} file with "${file.name}".`);
+      }
+      setFileFor(ext, file);
+    }
+    renderFileList();
+    showFileMessage(errs.length ? errs : notices, errs.length > 0);
+  }
+
+  const uploadZone = $("uploadZone");
+  const filePicker = $("filePicker");
+
+  uploadZone.addEventListener("click", () => filePicker.click());
+  uploadZone.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      filePicker.click();
+    }
+  });
+  uploadZone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    uploadZone.classList.add("dragover");
+  });
+  uploadZone.addEventListener("dragleave", () => uploadZone.classList.remove("dragover"));
+  uploadZone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    uploadZone.classList.remove("dragover");
+    handleIncomingFiles(e.dataTransfer.files);
+  });
+  filePicker.addEventListener("change", () => {
+    handleIncomingFiles(filePicker.files);
+    filePicker.value = ""; // allow re-selecting the same file later
+  });
+  $("fileList").addEventListener("click", (e) => {
+    const btn = e.target.closest(".file-remove");
+    if (!btn) return;
+    setFileFor(btn.dataset.kind, null);
+    renderFileList();
+  });
 
   // Tracks the order currently awaiting a Helcim result, so the single
   // top-level "message" listener below knows what it's listening for.
