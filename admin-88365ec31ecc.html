@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="robots" content="noindex, nofollow" />
   <title>PringlePrints — Order Admin</title>
+  <script src="/assets.js"></script>
   <style>
     :root { --bg:#f6f6f7; --card:#fff; --line:#e3e3e6; --ink:#111; --muted:#6b7280; }
     * { box-sizing: border-box; }
@@ -44,7 +45,9 @@
     .advance { background: #111; color: #fff; border-color: #111; font-weight: 600; }
     .confirm { background: #166534; color: #fff; border-color: #166534; font-weight: 600; }
     .hidden { display: none; }
-    #err { color:#b00020; }
+    #status { min-height: 1.2em; margin-bottom: .5rem; }
+    #status.err { color:#b00020; }
+    #status.ok { color:#166534; }
   </style>
 </head>
 <body>
@@ -56,6 +59,8 @@
   </header>
 
   <main>
+    <p id="status" role="status" aria-live="polite"></p>
+
     <!-- LOGIN -->
     <section id="login" class="login">
       <p class="muted">Enter your Worker URL and admin token. Kept only in this tab.</p>
@@ -68,7 +73,6 @@
         Hide delivered orders
       </label>
       <button class="primary" id="loginBtn">Load orders</button>
-      <p id="err"></p>
     </section>
 
     <!-- LIST -->
@@ -80,8 +84,12 @@
     const STAGES = ["pending-payment","processing","printing","cutting","ready-for-pickup","picked-up"];
     const METHOD_LABEL = { pickup:"Pickup", delivery:"Delivery", mail:"Mail" };
     const el = (id) => document.getElementById(id);
-    const cents = (c) => "$" + (c/100).toFixed(2);
     const when = (iso) => { try { return new Date(iso).toLocaleString(); } catch { return iso; } };
+    function setStatus(text, kind) {
+      const s = el("status");
+      s.textContent = text || "";
+      s.className = kind || "";
+    }
 
     // Session state (this tab only — cleared on close or Lock).
     let API = sessionStorage.getItem("pp_api") || "";
@@ -91,10 +99,14 @@
     el("loginBtn").addEventListener("click", async () => {
       API = el("apiBase").value.trim().replace(/\/$/, "");
       TOKEN = el("token").value.trim();
-      if (!API || !TOKEN) { el("err").textContent = "Both fields are required."; return; }
+      if (!API || !TOKEN) { setStatus("Both fields are required.", "err"); return; }
       sessionStorage.setItem("pp_api", API);
       sessionStorage.setItem("pp_token", TOKEN);
+      el("loginBtn").disabled = true;
+      el("loginBtn").textContent = "Loading…";
       await load();
+      el("loginBtn").disabled = false;
+      el("loginBtn").textContent = "Load orders";
     });
 
     el("refreshBtn").addEventListener("click", load);
@@ -116,7 +128,7 @@
         if (!res.ok) throw new Error(await res.text());
         current = await res.json();
       } catch (e) {
-        alert("Could not look up loyalty count: " + (e.message || e));
+        setStatus("Could not look up loyalty count: " + (e.message || e), "err");
         return;
       }
       const input = prompt(
@@ -127,7 +139,7 @@
       if (input === null) return;
       const count = parseInt(input, 10);
       if (!Number.isFinite(count) || count < 0) {
-        alert("Count must be a non-negative whole number.");
+        setStatus("Count must be a non-negative whole number.", "err");
         return;
       }
       try {
@@ -138,14 +150,14 @@
         });
         if (!res.ok) throw new Error(await res.text());
         const updated = await res.json();
-        alert(`Updated. ${updated.email} is now at ${updated.count} (${updated.remaining} more until their next free order).`);
+        setStatus(`Updated. ${updated.email} is now at ${updated.count} (${updated.remaining} more until their next free order).`, "ok");
       } catch (e) {
-        alert("Could not update loyalty count: " + (e.message || e));
+        setStatus("Could not update loyalty count: " + (e.message || e), "err");
       }
     }
 
     async function load() {
-      el("err").textContent = "";
+      setStatus("");
       const openOnly = el("openOnly").checked ? "&open=1" : "";
       let data;
       try {
@@ -153,7 +165,7 @@
         if (res.status === 401) throw new Error("Unauthorized — check your token.");
         data = await res.json();
       } catch (e) {
-        el("err").textContent = e.message || "Could not load orders.";
+        setStatus(e.message || "Could not load orders.", "err");
         return;
       }
       el("login").classList.add("hidden");
@@ -166,7 +178,11 @@
 
     function render(orders) {
       const list = el("list");
-      if (!orders.length) { list.innerHTML = `<p class="muted">No orders.</p>`; return; }
+      if (!orders.length) {
+        const msg = el("openOnly").checked ? "No open orders — everything's caught up." : "No orders yet.";
+        list.innerHTML = `<p class="muted">${msg}</p>`;
+        return;
+      }
       list.innerHTML = orders.map(cardHtml).join("");
       list.querySelectorAll("[data-advance]").forEach((b) =>
         b.addEventListener("click", () => advance(b.dataset.advance, b.dataset.next || null, b.dataset.method, b.dataset.next || null)));
@@ -184,7 +200,7 @@
                 : o.paid ? `<span class="muted">paid · ${o.paymentMethod || "—"}</span>`
                 : needsConfirm ? `<span class="flag">e-transfer — verify & confirm</span>`
                 : `<span class="flag">awaiting payment</span>`;
-      const ship = o.shippingCents ? ` + ${cents(o.shippingCents)} ship` : "";
+      const ship = o.shippingCents ? ` + ${money(o.shippingCents)} ship` : "";
       const method = `<span class="pill">${METHOD_LABEL[o.fulfillment] || o.fulfillment || "—"}</span>`;
       const files = (o.files || []).map((f) =>
         `<a href="#" data-file="${o.id}" data-field="${f.field}" data-name="${f.name}">⬇ ${f.field.toUpperCase()}</a>`).join("");
@@ -198,9 +214,9 @@
         <div class="row">
           <span class="id">${o.id}</span>
           <span class="badge b-${o.status}">${o.status}</span>
-          <span class="amt">${cents(o.amountCents)}</span>
+          <span class="amt">${money(o.amountCents)}</span>
         </div>
-        <div class="row muted" style="margin-top:.2rem">${method} ${o.email} · ${when(o.createdAt)}${ship ? ` · ${cents(o.basePriceCents)}${ship}` : ""}</div>
+        <div class="row muted" style="margin-top:.2rem">${method} ${o.email} · ${when(o.createdAt)}${ship ? ` · ${money(o.basePriceCents)}${ship}` : ""}</div>
         ${o.address ? `<div class="muted">📍 ${escapeHtml(o.address)}</div>` : ""}
         ${o.fulfillment === "pickup" && o.pickupLocation ? `<div class="muted">📍 Meet at: ${escapeHtml(o.pickupLocation)}</div>` : ""}
         ${o.details ? `<div class="muted">“${escapeHtml(o.details)}”</div>` : ""}
@@ -227,7 +243,7 @@
         if (!res.ok) throw new Error(await res.text());
         await load();
       } catch (e) {
-        el("err").textContent = "Update failed: " + (e.message || e);
+        setStatus("Update failed: " + (e.message || e), "err");
       }
     }
 
@@ -242,12 +258,8 @@
         document.body.appendChild(a); a.click(); a.remove();
         URL.revokeObjectURL(url);
       } catch (e) {
-        el("err").textContent = "Could not download file.";
+        setStatus("Could not download file.", "err");
       }
-    }
-
-    function escapeHtml(s) {
-      return String(s).replace(/[&<>"]/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c]));
     }
 
     // Auto-load if we still have a token from earlier in this tab session.
