@@ -182,7 +182,7 @@
           <div class="upload" id="uploadZone" tabindex="0" role="button" aria-label="Upload your print file">
             <div class="upload-copy">
               <strong>Upload your print file (PDF)</strong>
-              <span class="hint">Drag &amp; drop, or click to browse. You can include an XML job ticket too, if you have one.</span>
+              <span class="hint">Drag &amp; drop, or click to browse.</span>
             </div>
           </div>
           <input type="file" id="filePicker" accept=".pdf,.xml" multiple hidden>
@@ -461,10 +461,10 @@
       }
       const data = await res.json();
       if (data.rewardAvailable) {
-        const amt = data.loyaltyRewardCents ? money(data.loyaltyRewardCents) : "a reward";
-        renderLoyaltyBanner({ type: "reward", text: `Your next qualifying order gets ${amt} off, applied automatically.` });
+        const upTo = data.loyaltyRewardCents ? ` (up to ${money(data.loyaltyRewardCents)} off)` : "";
+        renderLoyaltyBanner({ type: "reward", text: `Your next qualifying order gets one 112-card batch free${upTo} — applied automatically at checkout.` });
       } else if (data.qualifyingCount > 0) {
-        renderLoyaltyBanner({ type: "progress", text: `${data.qualifyingCount} of ${data.freeEvery} orders toward your next reward.` });
+        renderLoyaltyBanner({ type: "progress", text: `${data.qualifyingCount} of ${data.freeEvery} orders toward a free 112-card batch.` });
       } else {
         renderLoyaltyBanner(null);
       }
@@ -533,7 +533,7 @@
     for (const file of fileList) {
       const ext = extOf(file);
       if (ext !== "pdf" && ext !== "xml") {
-        errs.push(`"${file.name}" isn't a PDF or XML file, so it was skipped.`);
+        errs.push(`"${file.name}" isn't a supported file type — please upload a PDF.`);
         continue;
       }
       if (currentFile(ext)) {
